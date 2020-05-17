@@ -196,6 +196,28 @@ static inline __m128i aesecb_encrypt(ptls_fusion_aesecb_context_t *ctx, __m128i 
 
 static inline __m128i loadn(const void *_p, size_t l)
 {
+#if 1
+    __m128i x, m;
+    static const uint8_t mask[31] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                                     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+    m = _mm_loadu_si128((__m128i *)(mask + 16 - l));
+    uintptr_t addr = (uintptr_t)_p;
+    uintptr_t mod4096 = addr % 4096;
+    if (PTLS_LIKELY(mod4096 <= 4080)) {// || mod4096 + l > 4096)) {
+        x = _mm_loadu_si128(_p);
+	} else {
+        static const unsigned char shiftPtn[32] = {
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+            0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+            0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+            0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80
+        };
+        uintptr_t shift = addr & 15;
+        __m128i ptn = _mm_loadu_si128((const __m128i*)(shiftPtn + shift));
+        x = _mm_shuffle_epi8(_mm_load_si128((const __m128i*)(addr & ~(uintptr_t)15)), ptn);
+    }
+    return _mm_and_si128(x, m);
+#else
     /* FIXME is this optimal? */
     if (PTLS_LIKELY(((uintptr_t)_p % 4096) <= 4080)) {
         static const uint8_t mask[31] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -208,6 +230,7 @@ static inline __m128i loadn(const void *_p, size_t l)
             buf[i] = p[i];
         return *(__m128i *)buf;
     }
+#endif
 }
 
 static inline void storen(void *_p, size_t l, __m128i v)
