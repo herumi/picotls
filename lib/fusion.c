@@ -197,6 +197,14 @@ static inline __m128i aesecb_encrypt(ptls_fusion_aesecb_context_t *ctx, __m128i 
 static inline __m128i loadn(const void *_p, size_t l)
 {
 #if 1
+#if defined(__AVX512BW__) && defined(__AVX512VL__)
+    if (l == 16) {
+        return _mm_loadu_si128((const __m128i*)_p);
+    } else {
+        __mmask16 k =  _mm512_kmov((1 << l) - 1);
+        return _mm_maskz_loadu_epi8(k, _p);
+    }
+#else
     __m128i x, m;
     static const uint8_t mask[31] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
                                      0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
@@ -217,6 +225,7 @@ static inline __m128i loadn(const void *_p, size_t l)
         x = _mm_shuffle_epi8(_mm_load_si128((const __m128i*)(addr & ~(uintptr_t)15)), ptn);
     }
     return _mm_and_si128(x, m);
+#endif
 #else
     /* FIXME is this optimal? */
     if (PTLS_LIKELY(((uintptr_t)_p % 4096) <= 4080)) {
