@@ -227,11 +227,29 @@ static inline void storen(void *_p, size_t l, __m128i v)
 
 static inline void load_xor_storen(void *_dst, const void *_src, __m128i v, size_t l)
 {
-    uint8_t buf[16], *dst = _dst;
+    uint8_t *dst = _dst;
     const uint8_t *src = _src;
+#if 0
+    uint64_t u;
+    u = _mm_cvtsi128_si64(v);
+    for (size_t i = 0; i != l; ++i) {
+        dst[i] = src[i] ^ u;
+        u >>= 8;
+    }
+    if (l <= 8) return;
+    dst += 8;
+    src += 8;
+    u = _mm_cvtsi128_si64(_mm_unpackhi_epi64(v, v));
+    for (size_t i = 0; i != l; ++i) {
+        dst[i] = src[i] ^ u;
+        u >>= 8;
+    }
+#else
+	char buf[16];
     *(__m128i *)buf = v;
     for (size_t i = 0; i != l; ++i)
         dst[i] = src[i] ^ buf[i];
+#endif
 }
 
 void ptls_fusion_aesgcm_encrypt(ptls_fusion_aesgcm_context_t *ctx, void *output, const void *input, size_t inlen, __m128i ctr,
