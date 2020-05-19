@@ -204,6 +204,28 @@ static const uint8_t loadn_shuffle[31] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x
 
 static inline __m128i loadn(const void *p, size_t l)
 {
+#if 1
+    __m128i s = _mm_loadu_si128((const __m128i *)((const uint8_t*)p - 16 + l));
+#define APPLY(l) return _mm_srli_si128(s, 16 - l)
+    switch (l) {
+    case 1: APPLY(1);
+    case 2: APPLY(2);
+    case 3: APPLY(3);
+    case 4: APPLY(4);
+    case 5: APPLY(5);
+    case 6: APPLY(6);
+    case 7: APPLY(7);
+    case 8: APPLY(8);
+    case 9: APPLY(9);
+    case 10: APPLY(10);
+    case 11: APPLY(11);
+    case 12: APPLY(12);
+    case 13: APPLY(13);
+    case 14: APPLY(14);
+    case 15: APPLY(15);
+    }
+#undef APPLY
+#else
     __m128i v, mask = _mm_loadu_si128((__m128i *)(loadn_mask + 16 - l));
     uintptr_t mod4k = (uintptr_t)p % 4096;
 
@@ -216,16 +238,60 @@ static inline __m128i loadn(const void *p, size_t l)
     }
     v = _mm_and_si128(v, mask);
     return v;
+#endif
 }
 
 static inline void storen(void *_p, size_t l, __m128i v)
 {
+#if 1
+    uint8_t *p = _p;
+#if 0
+    if (l <= 8) {
+        uint64_t u = _mm_cvtsi128_si64(v);
+        switch (l) {
+        case 1: p[0] = u; break;
+        case 2: p[0] = u; p[1] = u >> 8; break;
+        case 3: p[0] = u; p[1] = u >> 8; p[2] = u >> 16; break;
+        case 4: *(uint32_t*)p = u; break;
+        case 5: *(uint32_t*)p = u; p[4] = u >> 32; break;
+        case 6: *(uint32_t*)p = u; p[4] = u >> 32; p[5] = u >> 40; break;
+        case 7: *(uint32_t*)p = u; p[4] = u >> 32; p[5] = u >> 40; p[6] = u >> 48; break;
+        case 8: *(uint64_t*)p = u; break;
+        }
+    } else
+#endif
+    {
+        __m128i d = _mm_loadu_si128((const __m128i *)(p - 16));
+#define APPLY(l) _mm_storeu_si128((__m128i *)(p - 16 + l), _mm_alignr_epi8(d, v, l)); return
+        switch (l) {
+#if 1
+        case 1: APPLY(1);
+        case 2: APPLY(2);
+        case 3: APPLY(3);
+        case 4: APPLY(4);
+        case 5: APPLY(5);
+        case 6: APPLY(6);
+        case 7: APPLY(7);
+        case 8: APPLY(8);
+#endif
+        case 9: APPLY(9);
+        case 10: APPLY(10);
+        case 11: APPLY(11);
+        case 12: APPLY(12);
+        case 13: APPLY(13);
+        case 14: APPLY(14);
+        case 15: APPLY(15);
+        }
+    }
+#undef APPLY
+#else
     uint8_t buf[16], *p = _p;
 
     *(__m128i *)buf = v;
 
     for (size_t i = 0; i != l; ++i)
         p[i] = buf[i];
+#endif
 }
 
 void ptls_fusion_aesgcm_encrypt(ptls_fusion_aesgcm_context_t *ctx, void *output, const void *input, size_t inlen, __m128i ctr,
