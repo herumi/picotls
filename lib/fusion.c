@@ -197,6 +197,28 @@ static inline __m128i aesecb_encrypt(ptls_fusion_aesecb_context_t *ctx, __m128i 
 
 static inline __m128i loadn(const void *_p, size_t l)
 {
+#if 1
+    __m128i s = _mm_loadu_si128((const __m128i *)((const uint8_t*)_p - 16 + l));
+#define APPLY(l) return _mm_srli_si128(s, 16 - l)
+    switch (l) {
+    case 1: APPLY(1);
+    case 2: APPLY(2);
+    case 3: APPLY(3);
+    case 4: APPLY(4);
+    case 5: APPLY(5);
+    case 6: APPLY(6);
+    case 7: APPLY(7);
+    case 8: APPLY(8);
+    case 9: APPLY(9);
+    case 10: APPLY(10);
+    case 11: APPLY(11);
+    case 12: APPLY(12);
+    case 13: APPLY(13);
+    case 14: APPLY(14);
+    case 15: APPLY(15);
+    }
+#undef APPLY
+#else
     /* FIXME is this optimal? */
     if (PTLS_LIKELY(((uintptr_t)_p % 4096) <= 4080)) {
         static const uint8_t mask[31] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -209,10 +231,58 @@ static inline __m128i loadn(const void *_p, size_t l)
             buf[i] = p[i];
         return *(__m128i *)buf;
     }
+#endif
 }
 
 static inline __m128i *load_xor_storen(__m128i *_dst, const __m128i *_src, size_t l, __m128i bits)
 {
+#if 1
+    assert(0 < l && l < 16);
+    uint8_t *dst = (uint8_t*)_dst;
+    const uint8_t *src = (const uint8_t*)_src;
+#if 0
+    if (l <= 8) {
+        uint64_t u = _mm_cvtsi128_si64(bits);
+        switch (l) {
+        case 1: dst[0] = src[0] ^ u; break;
+        case 2: dst[0] = src[0] ^ u; dst[1] = src[1] ^ (u >> 8); break;
+        case 3: dst[0] = src[0] ^ u; dst[1] = src[1] ^ (u >> 8); dst[2] = src[2] ^ (u >> 16); break;
+        case 4: *(uint32_t*)dst = *(uint32_t*)src ^ u; break;
+        case 5: *(uint32_t*)dst = *(uint32_t*)src ^ u; dst[4] = src[4] ^ (u >> 32); break;
+        case 6: *(uint32_t*)dst = *(uint32_t*)src ^ u; dst[4] = src[4] ^ (u >> 32); dst[5] = src[5] ^ (u >> 40); break;
+        case 7: *(uint32_t*)dst = *(uint32_t*)src ^ u; dst[4] = src[4] ^ (u >> 32); dst[5] = src[5] ^ (u >> 40); dst[6] = src[6] ^ (u >> 40); break;
+        case 8: *(uint64_t*)dst = *(uint64_t*)src ^ u; break;
+        }
+        return (__m128i *)(dst + l);
+    } else
+#endif
+    {
+        __m128i s = _mm_loadu_si128((const __m128i *)(src - 16 + l));
+        __m128i d = _mm_loadu_si128((const __m128i *)(dst - 16));
+#define APPLY(l) _mm_storeu_si128((__m128i *)(dst - 16 + l), _mm_alignr_epi8(_mm_xor_si128(_mm_srli_si128(s, 16 - l), bits), d, l))
+        switch (l) {
+#if 1
+        case 1: APPLY(1); break;
+        case 2: APPLY(2); break;
+        case 3: APPLY(3); break;
+        case 4: APPLY(4); break;
+        case 5: APPLY(5); break;
+        case 6: APPLY(6); break;
+        case 7: APPLY(7); break;
+        case 8: APPLY(8); break;
+#endif
+        case 9: APPLY(9); break;
+        case 10: APPLY(10); break;
+        case 11: APPLY(11); break;
+        case 12: APPLY(12); break;
+        case 13: APPLY(13); break;
+        case 14: APPLY(14); break;
+        case 15: APPLY(15); break;
+        }
+    }
+    return (__m128i *)(dst + l);
+#undef APPLY
+#else
     uint8_t buf[16] __attribute__((aligned(16))), *dst = (void *)_dst;
     const uint8_t *src = (void *)_src;
 
@@ -221,6 +291,7 @@ static inline __m128i *load_xor_storen(__m128i *_dst, const __m128i *_src, size_
     for (size_t i = 0; i != l; ++i)
         dst[i] = src[i] ^ buf[i];
     return (__m128i *)(dst + l);
+#endif
 }
 
 void ptls_fusion_aesgcm_encrypt(ptls_fusion_aesgcm_context_t *ctx, void *output, const void *input, size_t inlen, __m128i ctr,
