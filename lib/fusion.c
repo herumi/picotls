@@ -204,8 +204,11 @@ static const uint8_t loadn_shuffle[31] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x
 
 static inline __m128i loadn(const void *p, size_t l)
 {
-#if 1
-    __m128i s = _mm_loadu_si128((const __m128i *)((const uint8_t*)p - 16 + l));
+#if defined(__AVX512BW__) && defined(__AVX512VL__)
+    __mmask16 k =  _mm512_kmov((1 << l) - 1);
+    return _mm_maskz_loadu_epi8(k, p);
+#elif 0
+    __m128i s = _mm_loadu_si128((const __m128i *)(((const char*)p) - 16 + l));
 #define APPLY(l) return _mm_srli_si128(s, 16 - l)
     switch (l) {
     case 1: APPLY(1);
@@ -243,7 +246,10 @@ static inline __m128i loadn(const void *p, size_t l)
 
 static inline void storen(void *_p, size_t l, __m128i v)
 {
-#if 1
+#if defined(__AVX512BW__) && defined(__AVX512VL__)
+    __mmask16 k = _mm512_kmov((1 << l) - 1);
+    _mm_mask_storeu_epi8(_p, k, v);
+#elif 0
     uint8_t *p = _p;
 #if 0
     if (l <= 8) {
@@ -262,7 +268,7 @@ static inline void storen(void *_p, size_t l, __m128i v)
 #endif
     {
         __m128i d = _mm_loadu_si128((const __m128i *)(p - 16));
-#define APPLY(l) _mm_storeu_si128((__m128i *)(p - 16 + l), _mm_alignr_epi8(d, v, l)); return
+#define APPLY(l) _mm_storeu_si128((__m128i *)(p - 16 + l), _mm_alignr_epi8(v, d, l)); return
         switch (l) {
 #if 1
         case 1: APPLY(1);
